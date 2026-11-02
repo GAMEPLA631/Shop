@@ -1,0 +1,1229 @@
+<!DOCTYPE html>
+<html lang="sk">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DIAMOND // NEXUS - Futuristická Platforma</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;600;800&family=Space+Grotesk:wght@400;600;700&display=swap" rel="stylesheet">
+
+  <!-- Paho MQTT cez CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
+
+  <style>
+    :root {
+      --bg-primary: #05070f;
+      --bg-card: rgba(13, 20, 36, 0.65);
+      --bg-glass: rgba(255, 255, 255, 0.03);
+      --border-diamond: rgba(160, 225, 255, 0.25);
+      --border-glow: rgba(0, 242, 254, 0.6);
+      --diamond-cyan: #00f2fe;
+      --diamond-blue: #4facfe;
+      --diamond-violet: #8a2be2;
+      --diamond-white: #e9f8ff;
+      --accent-spark: #70ffff;
+      --text-muted: #8c9cb8;
+      --danger: #ff3366;
+      --success: #00ffaa;
+      --font-display: 'Space Grotesk', sans-serif;
+      --font-body: 'Plus Jakarta Sans', sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    body {
+      background-color: var(--bg-primary);
+      color: var(--diamond-white);
+      font-family: var(--font-body);
+      min-height: 100vh;
+      overflow-x: hidden;
+      position: relative;
+      background-image: 
+        radial-gradient(circle at 15% 15%, rgba(79, 172, 254, 0.15) 0%, transparent 40%),
+        radial-gradient(circle at 85% 85%, rgba(138, 43, 226, 0.15) 0%, transparent 45%),
+        radial-gradient(circle at 50% 50%, rgba(0, 242, 254, 0.06) 0%, transparent 60%);
+      background-attachment: fixed;
+    }
+
+    /* Futuristická mriežka a lúče na pozadí */
+    .bg-prism-overlay {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 0;
+      background-size: 60px 60px;
+      background-image: 
+        linear-gradient(to right, rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+      mask-image: radial-gradient(ellipse at center, black 40%, transparent 80%);
+    }
+
+    /* Navigácia */
+    nav {
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      background: rgba(5, 7, 15, 0.75);
+      border-bottom: 1px solid var(--border-diamond);
+      padding: 1.2rem 2.5rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-family: var(--font-display);
+      font-size: 1.4rem;
+      font-weight: 700;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      background: linear-gradient(135deg, #fff 20%, var(--diamond-cyan) 60%, var(--diamond-blue));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .diamond-icon {
+      width: 28px;
+      height: 28px;
+      filter: drop-shadow(0 0 10px var(--diamond-cyan));
+    }
+
+    .nav-actions {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    /* MQTT Indikátor */
+    .mqtt-status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.75rem;
+      font-family: var(--font-display);
+      padding: 5px 12px;
+      border-radius: 20px;
+      background: rgba(0, 0, 0, 0.4);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      letter-spacing: 1px;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #ffaa00;
+      box-shadow: 0 0 8px #ffaa00;
+      transition: background 0.3s, box-shadow 0.3s;
+    }
+
+    .status-dot.online {
+      background: var(--success);
+      box-shadow: 0 0 10px var(--success);
+    }
+
+    /* Tlačidlá s diamantovým brusom */
+    .btn {
+      position: relative;
+      font-family: var(--font-display);
+      font-weight: 600;
+      font-size: 0.9rem;
+      padding: 0.75rem 1.6rem;
+      border-radius: 8px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+      text-decoration: none;
+      border: 1px solid transparent;
+      outline: none;
+    }
+
+    .btn-diamond {
+      background: linear-gradient(135deg, rgba(0, 242, 254, 0.25), rgba(79, 172, 254, 0.15));
+      color: #fff;
+      border: 1px solid var(--diamond-cyan);
+      box-shadow: 0 0 20px rgba(0, 242, 254, 0.2), inset 0 0 15px rgba(255, 255, 255, 0.15);
+      backdrop-filter: blur(10px);
+    }
+
+    .btn-diamond:hover {
+      background: linear-gradient(135deg, rgba(0, 242, 254, 0.5), rgba(138, 43, 226, 0.4));
+      border-color: #fff;
+      box-shadow: 0 0 30px rgba(0, 242, 254, 0.5), inset 0 0 20px rgba(255, 255, 255, 0.4);
+      transform: translateY(-2px);
+    }
+
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--diamond-white);
+      border: 1px solid var(--border-diamond);
+    }
+
+    .btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.12);
+      border-color: var(--diamond-cyan);
+    }
+
+    /* Hero Sekcia */
+    .hero {
+      position: relative;
+      z-index: 1;
+      padding: 5rem 2rem 3rem;
+      text-align: center;
+      max-width: 900px;
+      margin: 0 auto;
+    }
+
+    .badge-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 14px;
+      border-radius: 50px;
+      background: rgba(0, 242, 254, 0.08);
+      border: 1px solid rgba(0, 242, 254, 0.3);
+      font-size: 0.8rem;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: var(--accent-spark);
+      margin-bottom: 1.5rem;
+    }
+
+    .hero h1 {
+      font-family: var(--font-display);
+      font-size: clamp(2.5rem, 6vw, 4.2rem);
+      font-weight: 800;
+      line-height: 1.1;
+      margin-bottom: 1.2rem;
+      background: linear-gradient(180deg, #ffffff 40%, rgba(255, 255, 255, 0.6) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .hero p {
+      color: var(--text-muted);
+      font-size: 1.15rem;
+      line-height: 1.6;
+      max-width: 650px;
+      margin: 0 auto 2.5rem;
+    }
+
+    /* Mriežka Produktov (Diamond Grid) */
+    .container {
+      position: relative;
+      z-index: 1;
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 0 2rem 6rem;
+    }
+
+    .shop-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 2rem;
+    }
+
+    /* Karta Produktu */
+    .diamond-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-diamond);
+      border-radius: 18px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+      backdrop-filter: blur(15px);
+      -webkit-backdrop-filter: blur(15px);
+    }
+
+    .diamond-card::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(800px circle at var(--mouse-x, 50%) var(--mouse-y, 50%), rgba(255, 255, 255, 0.08), transparent 40%);
+      opacity: 0;
+      transition: opacity 0.5s;
+      pointer-events: none;
+    }
+
+    .diamond-card:hover {
+      transform: translateY(-8px) scale(1.01);
+      border-color: var(--border-glow);
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6), 0 0 25px rgba(0, 242, 254, 0.2);
+    }
+
+    .diamond-card:hover::before {
+      opacity: 1;
+    }
+
+    .card-media {
+      position: relative;
+      width: 100%;
+      height: 280px;
+      background: #090e1a;
+      overflow: hidden;
+    }
+
+    .card-media img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .diamond-card:hover .card-media img {
+      transform: scale(1.08);
+    }
+
+    .card-tag {
+      position: absolute;
+      top: 14px;
+      left: 14px;
+      background: rgba(5, 7, 15, 0.85);
+      border: 1px solid var(--border-diamond);
+      color: var(--diamond-cyan);
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      padding: 4px 10px;
+      border-radius: 6px;
+      backdrop-filter: blur(8px);
+    }
+
+    .card-content {
+      padding: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      flex-grow: 1;
+    }
+
+    .card-title {
+      font-family: var(--font-display);
+      font-size: 1.35rem;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 0.5rem;
+    }
+
+    .card-desc {
+      color: var(--text-muted);
+      font-size: 0.9rem;
+      line-height: 1.5;
+      margin-bottom: 1.5rem;
+      flex-grow: 1;
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .card-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+      padding-top: 1.2rem;
+      margin-top: auto;
+    }
+
+    .card-price {
+      font-family: var(--font-display);
+      font-size: 1.5rem;
+      font-weight: 700;
+      background: linear-gradient(135deg, #fff, var(--diamond-cyan));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      display: flex;
+      align-items: baseline;
+      gap: 4px;
+    }
+
+    .card-price span {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      -webkit-text-fill-color: var(--text-muted);
+    }
+
+    /* Modálne okná */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(3, 5, 12, 0.85);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      z-index: 1000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s ease;
+    }
+
+    .modal-backdrop.active {
+      opacity: 1;
+      pointer-events: all;
+    }
+
+    .modal-box {
+      background: #090e1a;
+      border: 1px solid var(--border-glow);
+      border-radius: 20px;
+      width: 100%;
+      max-width: 580px;
+      max-height: 90vh;
+      overflow-y: auto;
+      padding: 2.2rem;
+      position: relative;
+      box-shadow: 0 0 50px rgba(0, 242, 254, 0.25);
+      transform: translateY(20px) scale(0.97);
+      transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .modal-backdrop.active .modal-box {
+      transform: translateY(0) scale(1);
+    }
+
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1.8rem;
+    }
+
+    .modal-header h3 {
+      font-family: var(--font-display);
+      font-size: 1.6rem;
+      background: linear-gradient(135deg, #fff, var(--diamond-cyan));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .btn-close {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      font-size: 1.6rem;
+      cursor: pointer;
+      line-height: 1;
+      transition: color 0.2s;
+    }
+
+    .btn-close:hover {
+      color: #fff;
+    }
+
+    /* Formuláre */
+    .form-group {
+      margin-bottom: 1.25rem;
+    }
+
+    .form-label {
+      display: block;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--diamond-white);
+      margin-bottom: 0.4rem;
+      letter-spacing: 0.5px;
+    }
+
+    .form-control {
+      width: 100%;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 8px;
+      padding: 0.8rem 1rem;
+      color: #fff;
+      font-family: var(--font-body);
+      font-size: 0.95rem;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    .form-control:focus {
+      outline: none;
+      border-color: var(--diamond-cyan);
+      box-shadow: 0 0 15px rgba(0, 242, 254, 0.3);
+      background: rgba(255, 255, 255, 0.07);
+    }
+
+    textarea.form-control {
+      resize: vertical;
+      min-height: 80px;
+    }
+
+    .image-preview-box {
+      width: 100%;
+      height: 160px;
+      border-radius: 8px;
+      border: 1px dashed rgba(255, 255, 255, 0.2);
+      margin-top: 0.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      background: rgba(0, 0, 0, 0.2);
+      color: var(--text-muted);
+      font-size: 0.85rem;
+    }
+
+    .image-preview-box img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .order-item {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 10px;
+      padding: 1rem;
+      margin-bottom: 0.8rem;
+    }
+
+    .order-header {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 0.4rem;
+      font-size: 0.85rem;
+      color: var(--diamond-cyan);
+    }
+
+    /* Toast správa */
+    .toast {
+      position: fixed;
+      bottom: 2rem;
+      right: 2rem;
+      background: #090e1a;
+      border: 1px solid var(--diamond-cyan);
+      color: #fff;
+      padding: 1rem 1.6rem;
+      border-radius: 12px;
+      box-shadow: 0 0 30px rgba(0, 242, 254, 0.4);
+      z-index: 2000;
+      transform: translateY(100px);
+      opacity: 0;
+      transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .toast.show {
+      transform: translateY(0);
+      opacity: 1;
+    }
+
+    @media (max-width: 768px) {
+      nav {
+        padding: 1rem;
+        flex-direction: column;
+        gap: 1rem;
+      }
+      .hero {
+        padding: 3rem 1rem 2rem;
+      }
+      .shop-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="bg-prism-overlay"></div>
+
+  <!-- Horná lišta -->
+  <nav>
+    <div class="brand">
+      <svg class="diamond-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+        <polygon points="6 2 18 2 22 8 12 22 2 8 6 2" fill="url(#prism-grad)"/>
+        <line x1="2" y1="8" x2="22" y2="8" stroke="rgba(255,255,255,0.7)"/>
+        <line x1="12" y1="2" x2="12" y2="22" stroke="rgba(255,255,255,0.5)"/>
+        <defs>
+          <linearGradient id="prism-grad" x1="2" y1="2" x2="22" y2="22">
+            <stop offset="0%" stop-color="#00f2fe" stop-opacity="0.8"/>
+            <stop offset="100%" stop-color="#8a2be2" stop-opacity="0.8"/>
+          </linearGradient>
+        </defs>
+      </svg>
+      AURA // DIAMOND
+    </div>
+
+    <div class="nav-actions">
+      <!-- Real-Time MQTT Status Indikátor -->
+      <div class="mqtt-status-badge">
+        <span class="status-dot" id="mqttDot"></span>
+        <span id="mqttStatusText">EMQX CLOUD</span>
+      </div>
+
+      <button class="btn btn-secondary" onclick="openAdminModal()">
+        ⚙️ Administrácia
+      </button>
+      <button class="btn btn-diamond" onclick="openAddProductModal()">
+        + Zverejniť Dielo
+      </button>
+    </div>
+  </nav>
+
+  <!-- Hero sekcia -->
+  <section class="hero">
+    <div class="badge-chip">
+      <span>✦</span> EMQX Real-Time MQTT + Forminit Sync
+    </div>
+    <h1>PRÉMIOVÁ KRYŠTÁLOVÁ GALÉRIA</h1>
+    <p>
+      Verejný decentralizovaný katalóg. Všetky uverejnené diela sa v reálnom čase synchronizujú cez globálny EMQX Cloud Broker, 
+      ukladajú lokálne do IndexedDB a objednávky odchádzajú priamo na Forminit endpoint.
+    </p>
+  </section>
+
+  <!-- Mriežka s produktmi -->
+  <main class="container">
+    <div class="shop-grid" id="productGrid">
+      <!-- Dynamicky synchronizované produkty -->
+    </div>
+  </main>
+
+  <!-- 1. MODAL: Nákupný formulár (Forminit Endpoint) -->
+  <div class="modal-backdrop" id="checkoutModal">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3 id="checkoutTitle">Zabezpečená Objednávka</h3>
+        <button class="btn-close" onclick="closeModal('checkoutModal')">&times;</button>
+      </div>
+
+      <form id="orderForm" onsubmit="handleOrderSubmit(event)">
+        <input type="hidden" id="orderProductId" name="product_id" />
+        <input type="hidden" id="orderProductTitle" name="product_title" />
+        <input type="hidden" id="orderProductPrice" name="product_price" />
+
+        <div style="background: rgba(0, 242, 254, 0.05); border: 1px solid var(--border-diamond); border-radius: 8px; padding: 1rem; margin-bottom: 1.2rem;">
+          <div style="font-size: 0.85rem; color: var(--text-muted);">Zvolený produkt:</div>
+          <div id="checkoutProductSummary" style="font-size: 1.1rem; font-weight: 700; color: #fff;">-</div>
+          <div id="checkoutPriceSummary" style="font-size: 1rem; color: var(--diamond-cyan); font-weight: 600;">-</div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Vaše Meno a Priezvisko *</label>
+          <input type="text" id="buyerName" name="name" class="form-control" placeholder="napr. Alexej V." required />
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Váš Kontaktný E-mail *</label>
+          <input type="email" id="buyerEmail" name="email" class="form-control" placeholder="vas@email.com" required />
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Zariadenie / Identifikátor</label>
+          <input type="text" id="buyerDevice" name="device_info" class="form-control" readonly />
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Doplňujúca Poznámka / Špecifikácia</label>
+          <textarea id="buyerNote" name="note" class="form-control" placeholder="Zadajte detaily k objednávke alebo doručeniu..."></textarea>
+        </div>
+
+        <button type="submit" class="btn btn-diamond" style="width: 100%; justify-content: center; padding: 1rem;">
+          💎 Potvrdiť a Odoslať Objednávku
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- 2. MODAL: Zverejnenie nového diela / produktu -->
+  <div class="modal-backdrop" id="productModal">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3 id="productModalTitle">Zverejniť Verejné Dielo</h3>
+        <button class="btn-close" onclick="closeModal('productModal')">&times;</button>
+      </div>
+
+      <form id="productForm" onsubmit="publishProduct(event)">
+        <input type="hidden" id="prodId" />
+
+        <div class="form-group">
+          <label class="form-label">Názov Diela *</label>
+          <input type="text" id="prodTitle" class="form-control" placeholder="napr. Cyber Diamond Genesis" required />
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">URL link obrázka (Imgur, PostImages, Apollo hosting...) *</label>
+          <input type="url" id="prodUrl" class="form-control" placeholder="https://..." required oninput="previewImage(this.value)" />
+          <div class="image-preview-box" id="imgPreview">
+            Náhľad sa zobrazí po vložení URL
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Cena (€) *</label>
+          <input type="number" step="0.01" id="prodPrice" class="form-control" placeholder="49.00" required />
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Prístupový Tier (Úroveň)</label>
+          <select id="prodTier" class="form-control">
+            <option value="free">Free (Verejne dostupné)</option>
+            <option value="premium">Premium VIP</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Popis diela</label>
+          <textarea id="prodDesc" class="form-control" placeholder="Zadajte detailný popis obrázku či produktu..."></textarea>
+        </div>
+
+        <button type="submit" class="btn btn-diamond" style="width: 100%; justify-content: center; padding: 0.9rem;">
+          🌐 Zverejniť do EMQX Cloudu & IndexedDB
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- 3. MODAL: Administrácia, Nastavenie Endpointu & MQTT Status -->
+  <div class="modal-backdrop" id="adminModal">
+    <div class="modal-box" style="max-width: 680px;">
+      <div class="modal-header">
+        <h3>⚙️ Administrácia & Cloud Sync</h3>
+        <button class="btn-close" onclick="closeModal('adminModal')">&times;</button>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Forminit Endpoint</label>
+        <input type="text" id="cfgEndpoint" class="form-control" value="https://forminit.com/f/bvrmwxdb" />
+        <button type="button" class="btn btn-secondary" style="margin-top: 0.5rem;" onclick="saveEndpointConfig()">
+          Uložiť Endpoint
+        </button>
+      </div>
+
+      <div class="form-group" style="background: rgba(0, 242, 254, 0.04); padding: 1rem; border-radius: 8px; border: 1px solid var(--border-diamond);">
+        <label class="form-label" style="color: var(--diamond-cyan);">📡 EMQX Cloud Real-Time Topics</label>
+        <p style="font-size: 0.8rem; color: var(--text-muted); line-height: 1.6;">
+          • Katalóg: <code>dankermax/v1/vault_catalog</code> (Retained)<br>
+          • Používatelia: <code>dankermax/v1/users_registry</code> (Retained)<br>
+          • Hlásenia & Objednávky: <code>dankermax/v1/reports_queue</code>
+        </p>
+      </div>
+
+      <hr style="border: none; border-top: 1px solid rgba(255,255,255,0.1); margin: 1.5rem 0;" />
+
+      <div class="form-group">
+        <label class="form-label">Export Databázy & HTML Kódu</label>
+        <div style="display: flex; gap: 0.8rem; flex-wrap: wrap;">
+          <button class="btn btn-secondary" onclick="exportDataToJSON()">
+            📥 Stiahnuť JSON Zálohu
+          </button>
+          <button class="btn btn-secondary" onclick="exportHTMLSnippet()">
+            📋 Skopírovať Katalóg v HTML
+          </button>
+        </div>
+      </div>
+
+      <hr style="border: none; border-top: 1px solid rgba(255,255,255,0.1); margin: 1.5rem 0;" />
+
+      <h4 style="font-family: var(--font-display); color: #fff; margin-bottom: 0.8rem;">
+        Prijaté Objednávky v IndexedDB (<span id="ordersCount">0</span>)
+      </h4>
+      <div id="ordersContainer" style="max-height: 200px; overflow-y: auto; padding-right: 5px;"></div>
+    </div>
+  </div>
+
+  <!-- Toast Notifikácia -->
+  <div class="toast" id="toastBox">
+    <span id="toastIcon">✨</span>
+    <span id="toastMsg">Akcia bola úspešná!</span>
+  </div>
+
+  <script>
+    /* =========================================================================
+       1. EMQX CLOUD MQTT & REAL-TIME SYNCHRONIZÁCIA
+       ========================================================================= */
+    const MQTT_HOST = "broker.emqx.io";
+    const MQTT_PORT = 8084;
+    const MQTT_PATH = "/mqtt";
+    const CLIENT_ID = "dankermax_client_" + Math.random().toString(16).substr(2, 8);
+
+    const TOPIC_CATALOG = "dankermax/v1/vault_catalog";
+    const TOPIC_USERS   = "dankermax/v1/users_registry";
+    const TOPIC_REPORTS = "dankermax/v1/reports_queue";
+
+    let mqttClient = null;
+    let globalCatalog = []; // Zoznam zverejnených diel v pamäti
+
+    function initMQTT() {
+      try {
+        mqttClient = new Paho.MQTT.Client(MQTT_HOST, MQTT_PORT, MQTT_PATH, CLIENT_ID);
+        mqttClient.onConnectionLost = onConnectionLost;
+        mqttClient.onMessageArrived = onMessageArrived;
+
+        const options = {
+          useSSL: true,
+          timeout: 10,
+          keepAliveInterval: 30,
+          onSuccess: onConnectSuccess,
+          onFailure: onConnectFailure
+        };
+
+        mqttClient.connect(options);
+      } catch (err) {
+        console.error("MQTT Init Error:", err);
+        setMqttStatus(false);
+      }
+    }
+
+    function onConnectSuccess() {
+      console.log("🟢 EMQX MQTT Connected!");
+      setMqttStatus(true);
+
+      // Prihlásenie na perzistentné témy
+      mqttClient.subscribe(TOPIC_CATALOG, { qos: 1 });
+      mqttClient.subscribe(TOPIC_USERS, { qos: 1 });
+      mqttClient.subscribe(TOPIC_REPORTS, { qos: 1 });
+    }
+
+    function onConnectFailure(err) {
+      console.warn("MQTT Connection Failed, ponukneme opakovanie:", err);
+      setMqttStatus(false);
+      setTimeout(initMQTT, 5000);
+    }
+
+    function onConnectionLost(response) {
+      console.warn("MQTT Spojenie prerušené:", response.errorMessage);
+      setMqttStatus(false);
+      setTimeout(initMQTT, 3000);
+    }
+
+    function setMqttStatus(online) {
+      const dot = document.getElementById("mqttDot");
+      const text = document.getElementById("mqttStatusText");
+      if (online) {
+        dot.classList.add("online");
+        text.innerText = "EMQX LIVE";
+      } else {
+        dot.classList.remove("online");
+        text.innerText = "OFFLINE";
+      }
+    }
+
+    // Spracovanie prichádzajúcich správ z cloudu
+    async function onMessageArrived(message) {
+      const topic = message.destinationName;
+      const payload = message.payloadString;
+
+      try {
+        if (topic === TOPIC_CATALOG) {
+          const cloudItems = JSON.parse(payload);
+          if (Array.isArray(cloudItems)) {
+            globalCatalog = cloudItems;
+            
+            // Lokálne zálohovanie: localStorage + IndexedDB
+            localStorage.setItem("dankermax_vault_catalog", JSON.stringify(cloudItems));
+            for (const item of cloudItems) {
+              await putToStore("products", item);
+            }
+
+            renderProducts();
+          }
+        } else if (topic === TOPIC_REPORTS) {
+          console.log("📥 Nový report z cloudu:", payload);
+        }
+      } catch (e) {
+        console.error("Chyba spracovania správy z MQTT:", e);
+      }
+    }
+
+    // Odoslanie správy do EMQX Cloud s perzistenciou (retained = true)
+    function publishMQTT(topic, data, retain = true) {
+      if (!mqttClient || !mqttClient.isConnected()) {
+        console.warn("MQTT nie je pripojené, zmeny sa ukladajú lokálne.");
+        return;
+      }
+      const msg = new Paho.MQTT.Message(typeof data === "string" ? data : JSON.stringify(data));
+      msg.destinationName = topic;
+      msg.retained = retain;
+      msg.qos = 1;
+      mqttClient.send(msg);
+    }
+
+    /* =========================================================================
+       2. INDEXEDDB & LOKÁLNE ZÁLOHOVANIE
+       ========================================================================= */
+    const DB_NAME = "DiamondShopDB";
+    const DB_VERSION = 1;
+    let dbInstance = null;
+
+    function openDatabase() {
+      return new Promise((resolve, reject) => {
+        const req = indexedDB.open(DB_NAME, DB_VERSION);
+
+        req.onupgradeneeded = (e) => {
+          const db = e.target.result;
+          if (!db.objectStoreNames.contains("products")) {
+            db.createObjectStore("products", { keyPath: "id" });
+          }
+          if (!db.objectStoreNames.contains("orders")) {
+            db.createObjectStore("orders", { keyPath: "id", autoIncrement: true });
+          }
+        };
+
+        req.onsuccess = (e) => {
+          dbInstance = e.target.result;
+          resolve(dbInstance);
+        };
+
+        req.onerror = (e) => reject(e);
+      });
+    }
+
+    function putToStore(storeName, item) {
+      return new Promise((resolve, reject) => {
+        if (!dbInstance) return resolve();
+        const tx = dbInstance.transaction(storeName, "readwrite");
+        const store = tx.objectStore(storeName);
+        const req = store.put(item);
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      });
+    }
+
+    function getAllFromStore(storeName) {
+      return new Promise((resolve, reject) => {
+        if (!dbInstance) return resolve([]);
+        const tx = dbInstance.transaction(storeName, "readonly");
+        const store = tx.objectStore(storeName);
+        const req = store.getAll();
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      });
+    }
+
+    /* =========================================================================
+       3. INICIALIZÁCIA PLATFORMY
+       ========================================================================= */
+    async function initPlatform() {
+      await openDatabase();
+
+      // 1. Najprv načítame z lokálnej zálohy (localStorage / IndexedDB) pre okamžité zobrazenie
+      const cachedCatalog = localStorage.getItem("dankermax_vault_catalog");
+      if (cachedCatalog) {
+        try {
+          globalCatalog = JSON.parse(cachedCatalog);
+        } catch (e) {}
+      } else {
+        globalCatalog = await getAllFromStore("products");
+      }
+
+      // Predvolený nastavený Forminit endpoint
+      const savedEndpoint = localStorage.getItem("diamond_form_endpoint") || "https://forminit.com/f/bvrmwxdb";
+      document.getElementById("cfgEndpoint").value = savedEndpoint;
+
+      renderProducts();
+
+      // 2. Pripojíme sa na EMQX Broker, ktorý stiahne cloudový retained stav
+      initMQTT();
+    }
+
+    /* =========================================================================
+       4. VYKRESLENIE PRODUKTOV
+       ========================================================================= */
+    function renderProducts() {
+      const container = document.getElementById("productGrid");
+
+      if (!globalCatalog || globalCatalog.length === 0) {
+        container.innerHTML = `
+          <div style="grid-column: 1/-1; text-align: center; color: var(--text-muted); padding: 4rem;">
+            Zatiaľ neboli zverejnené žiadne verejné diela.<br>
+            Kliknite na <strong>+ Zverejniť Dielo</strong> hore a pridajte prvé!
+          </div>`;
+        return;
+      }
+
+      container.innerHTML = globalCatalog.map(prod => `
+        <article class="diamond-card" id="card_${prod.id}">
+          <div class="card-media">
+            <span class="card-tag">${escapeHtml(prod.tier === 'premium' ? '💎 VIP PREMIUM' : '✦ VEREJNÉ')}</span>
+            <img src="${escapeHtml(prod.url)}" alt="${escapeHtml(prod.title)}" loading="lazy" onerror="this.src='https://placehold.co/800x600/090e1a/00f2fe?text=Image+Load+Failed'" />
+          </div>
+          <div class="card-content">
+            <h2 class="card-title">${escapeHtml(prod.title)}</h2>
+            <p class="card-desc">${escapeHtml(prod.description || 'Bez popisu')}</p>
+            <div class="card-footer">
+              <div class="card-price">
+                ${Number(prod.price).toFixed(2)} <span>€</span>
+              </div>
+              <div style="display:flex; gap: 8px;">
+                <button class="btn btn-secondary" style="padding: 0.5rem 0.8rem;" onclick="openEditProductModal('${prod.id}')" title="Upraviť">
+                  ✏️
+                </button>
+                <button class="btn btn-diamond" style="padding: 0.5rem 1.2rem;" onclick="startOrder('${prod.id}', '${escapeAttr(prod.title)}', ${prod.price})">
+                  Kúpiť
+                </button>
+              </div>
+            </div>
+          </div>
+        </article>
+      `).join('');
+    }
+
+    /* =========================================================================
+       5. ZVEREJŇOVANIE NOVÉHO PRODUKTU (EMQX + INDEXEDDB)
+       ========================================================================= */
+    function openAddProductModal() {
+      document.getElementById("productModalTitle").innerText = "Zverejniť Verejné Dielo";
+      document.getElementById("productForm").reset();
+      document.getElementById("prodId").value = "";
+      document.getElementById("imgPreview").innerHTML = "Náhľad sa zobrazí po vložení URL";
+      openModal("productModal");
+    }
+
+    function openEditProductModal(id) {
+      const item = globalCatalog.find(p => p.id === id);
+      if (!item) return;
+
+      document.getElementById("productModalTitle").innerText = "Upraviť Dielo";
+      document.getElementById("prodId").value = item.id;
+      document.getElementById("prodTitle").value = item.title;
+      document.getElementById("prodUrl").value = item.url;
+      document.getElementById("prodPrice").value = item.price;
+      document.getElementById("prodTier").value = item.tier || "free";
+      document.getElementById("prodDesc").value = item.description || "";
+      
+      previewImage(item.url);
+      openModal("productModal");
+    }
+
+    function previewImage(url) {
+      const box = document.getElementById("imgPreview");
+      if (url && url.startsWith("http")) {
+        box.innerHTML = `<img src="${encodeURI(url)}" alt="Preview" onerror="this.parentElement.innerHTML='Neplatná URL obrázku'"/>`;
+      } else {
+        box.innerHTML = "Náhľad sa zobrazí po vložení platnej URL";
+      }
+    }
+
+    async function publishProduct(e) {
+      e.preventDefault();
+      const existingId = document.getElementById("prodId").value;
+      const product = {
+        id: existingId || "prod_" + Date.now(),
+        title: document.getElementById("prodTitle").value.trim(),
+        url: document.getElementById("prodUrl").value.trim(),
+        price: parseFloat(document.getElementById("prodPrice").value),
+        tier: document.getElementById("prodTier").value,
+        description: document.getElementById("prodDesc").value.trim(),
+        timestamp: new Date().toISOString()
+      };
+
+      // Aktualizujeme katalóg v pamäti
+      const index = globalCatalog.findIndex(p => p.id === product.id);
+      if (index > -1) {
+        globalCatalog[index] = product;
+      } else {
+        globalCatalog.push(product);
+      }
+
+      // 1. Lokálny zápis
+      localStorage.setItem("dankermax_vault_catalog", JSON.stringify(globalCatalog));
+      await putToStore("products", product);
+
+      // 2. Publikovanie do EMQX cloudu (perzistentne pre všetkých)
+      publishMQTT(TOPIC_CATALOG, globalCatalog, true);
+
+      closeModal("productModal");
+      showToast("Dielo bolo úspešne zverejnené a synchronizované v cloude!", "💎");
+      renderProducts();
+    }
+
+    /* =========================================================================
+       6. OBJEDNÁVKA (FORMINIT ENDPOINT + CLOUD REPORT + INDEXEDDB)
+       ========================================================================= */
+    function startOrder(id, title, price) {
+      document.getElementById("orderProductId").value = id;
+      document.getElementById("orderProductTitle").value = title;
+      document.getElementById("orderProductPrice").value = price;
+
+      document.getElementById("checkoutProductSummary").innerText = title;
+      document.getElementById("checkoutPriceSummary").innerText = `${Number(price).toFixed(2)} €`;
+
+      // Zariadenie používateľa
+      document.getElementById("buyerDevice").value = `${navigator.userAgentData?.platform || navigator.platform} | ${navigator.language}`;
+
+      openModal("checkoutModal");
+    }
+
+    async function handleOrderSubmit(e) {
+      e.preventDefault();
+
+      const endpoint = document.getElementById("cfgEndpoint").value.trim() || "https://forminit.com/f/bvrmwxdb";
+      const orderData = {
+        product_id: document.getElementById("orderProductId").value,
+        product_title: document.getElementById("orderProductTitle").value,
+        product_price: document.getElementById("orderProductPrice").value + " €",
+        name: document.getElementById("buyerName").value.trim(),
+        email: document.getElementById("buyerEmail").value.trim(),
+        device_info: document.getElementById("buyerDevice").value,
+        note: document.getElementById("buyerNote").value.trim(),
+        timestamp: new Date().toISOString()
+      };
+
+      // 1. Lokálny záznam do IndexedDB
+      await putToStore("orders", orderData);
+
+      // 2. MQTT Cloud záznam do reports_queue
+      publishMQTT(TOPIC_REPORTS, { type: "NEW_ORDER", order: orderData }, false);
+
+      // 3. Odoslanie na Forminit endpoint
+      try {
+        showToast("Odosielam na Forminit...", "⏳");
+        
+        await fetch(endpoint, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Accept": "application/json"
+          },
+          body: JSON.stringify(orderData)
+        });
+
+        showToast("Objednávka bola úspešne odoslaná na váš e-mail!", "💎");
+      } catch (err) {
+        console.warn("Chyba odosielania na Forminit:", err);
+        showToast("Objednávka bola uložená do databázy a odoslaná do cloudu!", "📦");
+      }
+
+      document.getElementById("orderForm").reset();
+      closeModal("checkoutModal");
+      refreshOrdersView();
+    }
+
+    /* =========================================================================
+       7. NASTAVENIA & EXPORTY
+       ========================================================================= */
+    function openAdminModal() {
+      refreshOrdersView();
+      openModal("adminModal");
+    }
+
+    function saveEndpointConfig() {
+      const endpoint = document.getElementById("cfgEndpoint").value.trim();
+      localStorage.setItem("diamond_form_endpoint", endpoint);
+      showToast("Endpoint úspešne uložený!", "✔️");
+    }
+
+    async function refreshOrdersView() {
+      const orders = await getAllFromStore("orders");
+      document.getElementById("ordersCount").innerText = orders.length;
+      const box = document.getElementById("ordersContainer");
+
+      if (orders.length === 0) {
+        box.innerHTML = `<div style="font-size:0.85rem; color:var(--text-muted); text-align:center; padding: 1rem;">Žiadne objednávky v lokálnej databáze.</div>`;
+        return;
+      }
+
+      box.innerHTML = orders.slice().reverse().map(o => `
+        <div class="order-item">
+          <div class="order-header">
+            <strong>${escapeHtml(o.product_title)} (${escapeHtml(o.product_price)})</strong>
+            <span>${new Date(o.timestamp).toLocaleString('sk-SK')}</span>
+          </div>
+          <div style="font-size:0.85rem; color: #fff;">
+            👤 ${escapeHtml(o.name || o.buyer_name)} &bull; ✉️ ${escapeHtml(o.email || o.buyer_email)}
+          </div>
+          <div style="font-size:0.75rem; color:var(--text-muted); margin-top:4px;">
+            💻 ${escapeHtml(o.device_info)}
+          </div>
+          ${o.note ? `<div style="font-size:0.8rem; color:#d0e2ff; margin-top:4px; font-style:italic;">"${escapeHtml(o.note)}"</div>` : ''}
+        </div>
+      `).join('');
+    }
+
+    async function exportDataToJSON() {
+      const orders = await getAllFromStore("orders");
+      const dataBackup = { catalog: globalCatalog, orders, exportedAt: new Date().toISOString() };
+      
+      const blob = new Blob([JSON.stringify(dataBackup, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `diamond_vault_backup_${Date.now()}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      showToast("Záloha úspešne stiahnutá!", "📥");
+    }
+
+    async function exportHTMLSnippet() {
+      if (globalCatalog.length === 0) {
+        showToast("Katalóg je zatiaľ prázdny", "⚠️");
+        return;
+      }
+      const snippet = globalCatalog.map(p => 
+        `<!-- Produkt: ${p.title} -->\n<div class="product-entry" data-id="${p.id}">\n  <img src="${p.url}" alt="${p.title}" />\n  <h3>${p.title}</h3>\n  <span class="price">${p.price} €</span>\n</div>`
+      ).join("\n\n");
+
+      await navigator.clipboard.writeText(snippet);
+      showToast("HTML kód skopírovaný do schránky!", "📋");
+    }
+
+    /* =========================================================================
+       8. POMOCNÉ FUNKCIE (UI, Modály, Toast)
+       ========================================================================= */
+    function openModal(id) {
+      document.getElementById(id).classList.add("active");
+    }
+
+    function closeModal(id) {
+      document.getElementById(id).classList.remove("active");
+    }
+
+    function showToast(msg, icon = "✨") {
+      const t = document.getElementById("toastBox");
+      document.getElementById("toastMsg").innerText = msg;
+      document.getElementById("toastIcon").innerText = icon;
+      t.classList.add("show");
+      setTimeout(() => t.classList.remove("show"), 3800);
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
+    function escapeAttr(str) {
+      if (!str) return '';
+      return String(str).replace(/"/g, "&quot;").replace(/'/g, "\\'");
+    }
+
+    document.addEventListener("mousemove", (e) => {
+      document.querySelectorAll(".diamond-card").forEach(card => {
+        const rect = card.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        card.style.setProperty("--mouse-x", `${x}px`);
+        card.style.setProperty("--mouse-y", `${y}px`);
+      });
+    });
+
+    window.addEventListener("DOMContentLoaded", initPlatform);
+  </script>
+</body>
+</html>
